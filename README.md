@@ -1,5 +1,7 @@
 # Directus Autosave Interface Extension
 
+> **Note**: This documentation was AI-generated based on the project's source code. While we've made every effort to ensure accuracy, please verify critical details against the actual implementation.
+
 Automatically saves changes to Directus items in near-realtime with configurable debounce timing.
 
 ## Features
