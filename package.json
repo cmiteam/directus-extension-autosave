@@ -30,7 +30,7 @@
 		"vue": "^3.4.27"
 	},
 	"dependencies": {
-		"@directus/sdk": "^16.1.0",
+		"@directus/sdk": "^20",
 		"lodash.debounce": "^4.0.8"
 	}
 }
