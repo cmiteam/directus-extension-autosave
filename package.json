@@ -24,13 +24,13 @@
     "link": "directus-extension link"
   },
   "devDependencies": {
-    "@directus/extensions-sdk": "^17",
+    "@directus/extensions-sdk": "^17.0.7",
     "@types/lodash.debounce": "^4.0.9",
     "typescript": "^5.9.3",
-    "vue": "^3.5.26"
+    "vue": "^3.5.28"
   },
   "dependencies": {
-    "@directus/sdk": "^20.3.0",
+    "@directus/sdk": "^21.1.0",
     "lodash.debounce": "^4.0.8"
   }
 }
