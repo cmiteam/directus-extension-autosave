@@ -27,9 +27,9 @@ const sdk = useSdk();
 
 const values = inject('values') as object;
 
-// Snapshot of values we last saved (including server-computed fields from the response).
-// Used to filter out diffs that are just the server echoing back what we saved.
-const lastSaved = ref<Record<string, any>>({});
+// Fields currently in-flight (being saved). The watcher ignores changes to these
+// fields to prevent WebSocket echoes from triggering recursive saves.
+const fieldsInFlight = new Set<string>();
 
 // Track the latest edits to an object between debounced updates.
 const changes = ref<object | null>(null);
@@ -59,13 +59,9 @@ watch(values, (newValue, oldValue) => {
   // Ignore empty diffs.
   if (Object.keys(diff).length === 0) return;
 
-  // Filter out fields whose new value matches what we last saved (or what the server returned).
-  // This prevents the server echo (via WebSocket) from being treated as a new user edit.
-  for (const [field, value] of Object.entries(diff)) {
-    if (field in lastSaved.value && JSON.stringify(lastSaved.value[field]) === JSON.stringify(value)) {
-      delete diff[field];
-      delete lastSaved.value[field];
-    }
+  // Skip fields that are currently in-flight to prevent WebSocket echoes from triggering recursive saves.
+  for (const field of Object.keys(diff)) {
+    if (fieldsInFlight.has(field)) delete diff[field];
   }
   if (Object.keys(diff).length === 0) return;
 
@@ -84,14 +80,22 @@ const triggerDebouncedUpdate = debounce(async function () {
   const changesToSave = { ...(changes.value || {}) };
   changes.value = null;
 
+  // Mark fields as in-flight so the watcher ignores echoes.
+  for (const field of Object.keys(changesToSave)) fieldsInFlight.add(field);
+
   // Trigger a server-side update.
   const result = await sdk.request(
     // @ts-ignore - No idea why TS is complaininga bout props.collection, and I don't really care.
     updateItem(props.collection, props.primaryKey, changesToSave),
   );
 
-  // Record the full server response so the watcher can ignore these values
-  // when they arrive asynchronously via WebSocket.
-  lastSaved.value = { ...(result as Record<string, any>) };
+  // Also mark server-computed fields (e.g. date_updated) as in-flight so their echo is ignored.
+  for (const field of Object.keys(result as object)) fieldsInFlight.add(field);
+
+  // Clear in-flight fields after a short delay to allow WebSocket echoes to arrive.
+  setTimeout(() => {
+    for (const field of Object.keys(result as object))
+      fieldsInFlight.delete(field);
+  }, props.autosave_frequency);
 }, props.autosave_frequency);
 </script>
