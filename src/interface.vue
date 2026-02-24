@@ -9,7 +9,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, watch, ref, computed, nextTick, Ref } from 'vue';
+import { inject, watch, ref, computed } from 'vue';
 import { useSdk } from '@directus/extensions-sdk';
 import { updateItem } from '@directus/sdk';
 import debounce from 'lodash.debounce';
@@ -26,13 +26,13 @@ const props = withDefaults(
 const sdk = useSdk();
 
 const values = inject('values') as object;
-const emit = defineEmits(['setFieldValue']);
 
-// Guard flag to ignore value changes triggered by writing the server response back into the form.
-const isSaving = ref(false);
+// Snapshot of values we last saved (including server-computed fields from the response).
+// Used to filter out diffs that are just the server echoing back what we saved.
+const lastSaved = ref<Record<string, any>>({});
 
 // Track the latest edits to an object between debounced updates.
-const changes: Ref<object | null> = ref(null);
+const changes = ref<object | null>(null);
 const numChangesPending = computed(
   () => Object.keys(changes.value || {}).length,
 );
@@ -52,13 +52,21 @@ const diffObjects = (
 watch(values, (newValue, oldValue) => {
   // Don't track anything if we're in "add" mode.
   if (props.primaryKey === '+' || !props.primaryKey) return;
-  // Ignore changes triggered by writing the server response back into the form.
-  if (isSaving.value) return;
   // If there was no previous value, don't count this as a change. It was probably during data loading.
   if (!oldValue || !Object.keys(oldValue).length) return;
 
   const diff = diffObjects(oldValue, newValue);
   // Ignore empty diffs.
+  if (Object.keys(diff).length === 0) return;
+
+  // Filter out fields whose new value matches what we last saved (or what the server returned).
+  // This prevents the server echo (via WebSocket) from being treated as a new user edit.
+  for (const [field, value] of Object.entries(diff)) {
+    if (field in lastSaved.value && JSON.stringify(lastSaved.value[field]) === JSON.stringify(value)) {
+      delete diff[field];
+      delete lastSaved.value[field];
+    }
+  }
   if (Object.keys(diff).length === 0) return;
 
   // Combine previous changes with the latest ones to collect updates during debounces.
@@ -82,15 +90,8 @@ const triggerDebouncedUpdate = debounce(async function () {
     updateItem(props.collection, props.primaryKey, changesToSave),
   );
 
-  // To avoid relational data duplicating itself, attempt to set the results of the update call back on the main form.
-  // This causes some odd issues, like triggering a second auto-update on relational forms, but seems to largely work.
-  // Set the saving guard so the watcher ignores these changes (prevents infinite update loops with collaborative editing).
-  isSaving.value = true;
-  for (const [key, value] of Object.entries(result as object)) {
-    emit('setFieldValue', { field: key, value: value });
-  }
-  // Use nextTick to clear the guard after Vue has processed all the reactive updates.
-  await nextTick();
-  isSaving.value = false;
+  // Record the full server response so the watcher can ignore these values
+  // when they arrive asynchronously via WebSocket.
+  lastSaved.value = { ...(result as Record<string, any>) };
 }, props.autosave_frequency);
 </script>
