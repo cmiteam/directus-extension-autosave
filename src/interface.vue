@@ -9,7 +9,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, watch, ref, computed, Ref } from 'vue';
+import { inject, watch, ref, computed, nextTick, Ref } from 'vue';
 import { useSdk } from '@directus/extensions-sdk';
 import { updateItem } from '@directus/sdk';
 import debounce from 'lodash.debounce';
@@ -27,6 +27,9 @@ const sdk = useSdk();
 
 const values = inject('values') as object;
 const emit = defineEmits(['setFieldValue']);
+
+// Guard flag to ignore value changes triggered by writing the server response back into the form.
+const isSaving = ref(false);
 
 // Track the latest edits to an object between debounced updates.
 const changes: Ref<object | null> = ref(null);
@@ -49,6 +52,8 @@ const diffObjects = (
 watch(values, (newValue, oldValue) => {
   // Don't track anything if we're in "add" mode.
   if (props.primaryKey === '+' || !props.primaryKey) return;
+  // Ignore changes triggered by writing the server response back into the form.
+  if (isSaving.value) return;
   // If there was no previous value, don't count this as a change. It was probably during data loading.
   if (!oldValue || !Object.keys(oldValue).length) return;
 
@@ -79,8 +84,13 @@ const triggerDebouncedUpdate = debounce(async function () {
 
   // To avoid relational data duplicating itself, attempt to set the results of the update call back on the main form.
   // This causes some odd issues, like triggering a second auto-update on relational forms, but seems to largely work.
+  // Set the saving guard so the watcher ignores these changes (prevents infinite update loops with collaborative editing).
+  isSaving.value = true;
   for (const [key, value] of Object.entries(result as object)) {
     emit('setFieldValue', { field: key, value: value });
   }
+  // Use nextTick to clear the guard after Vue has processed all the reactive updates.
+  await nextTick();
+  isSaving.value = false;
 }, props.autosave_frequency);
 </script>
