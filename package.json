@@ -21,13 +21,17 @@
   "scripts": {
     "build": "directus-extension build",
     "dev": "directus-extension build -w --no-minify",
-    "link": "directus-extension link"
+    "link": "directus-extension link",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@cmiteam/tsconfig": "workspace:*",
     "@directus/extensions-sdk": "^18.0.1",
     "@types/lodash.debounce": "^4.0.9",
-    "typescript": "^5.9.3",
-    "vue": "^3.5.28"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vue": "^3.5.28",
+    "vue-tsc": "catalog:"
   },
   "dependencies": {
     "@directus/sdk": "^21.1.0",
