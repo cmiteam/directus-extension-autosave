@@ -34,7 +34,7 @@
     "vue-tsc": "catalog:"
   },
   "dependencies": {
-    "@directus/sdk": "^21.1.0",
+    "@directus/sdk": "catalog:",
     "lodash.debounce": "^4.0.8"
   }
 }
